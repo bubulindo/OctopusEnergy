@@ -1,0 +1,146 @@
+############################ SCRATCH PAD ####################################
+# get the latest data from database
+# select MAX(endTime) from rawData
+
+# get daily consumption
+# select sum(consumption) from rawData where startTime > "2022-01-01T00:00:00" and endTime < "2022-01-02T00:00:00"
+
+# get daily total consumption by day in a given month.
+# SELECT strftime('%d', startTime) as valDay,
+# SUM(consumption) as valTotalDay
+# FROM rawData
+# WHERE
+# strftime('%Y', startTime)='2022'
+# AND strftime('%m', startTime) ='01'
+# GROUP BY valDay;
+
+# get daily total consumption grouped by year, month, day.
+# SELECT strftime('%d', startTime) as valDay,
+# strftime('%m', startTime) as valMonth,
+# strftime('%Y', startTime) as valYear,
+# SUM(consumption) as valTotalDay
+# FROM rawData
+# WHERE
+# strftime('%Y', startTime)='2021'
+# GROUP BY valYear, valMonth, valDay ;
+
+#get the off peak consumption
+#
+SELECT strftime('%d', startTime) as valDay,
+strftime('%m', startTime) as valMonth,
+strftime('%Y', startTime) as valYear,
+SUM(consumption) as valTotalDay
+FROM rawData
+WHERE
+strftime('%Y', startTime)='2021'
+AND (strftime('%H:%M:%S',startTime) >= "00:30:00"
+AND strftime('%H:%M:%S',startTime) < "04:30:00")
+GROUP BY valYear, valMonth, valDay ;
+
+# get the peak consumption
+SELECT strftime('%d', startTime) as valDay,
+strftime('%m', startTime) as valMonth,
+strftime('%Y', startTime) as valYear,
+SUM(consumption) as valTotalDay
+FROM rawData
+WHERE
+strftime('%Y', startTime)='2021'
+AND (strftime('%H:%M:%S',startTime) >= "00:00:00" AND strftime('%H:%M:%S',endTime) <= "00:30:00"
+OR strftime('%H:%M:%S',startTime) >= "04:30:00" AND strftime('%H:%M:%S',endTime) <="23:30:00")
+GROUP BY valYear, valMonth, valDay ;
+
+# Put grouped data correctly and insert into table.
+INSERT INTO structuredData (Year, Month, Day, OffPeakConsumptioon)
+SELECT strftime('%d', startTime) as valDay,
+strftime('%m', startTime) as valMonth,
+strftime('%Y', startTime) as valYear,
+SUM(consumption) as valTotalDay
+FROM rawData
+WHERE
+strftime('%Y', startTime)>='2021'
+AND (strftime('%H:%M:%S',startTime) >= "00:30:00"
+AND strftime('%H:%M:%S',startTime) < "04:30:00")
+GROUP BY valYear, valMonth, valDay ;
+
+UPDATE structuredData
+   SET PeakConsumption = daily.amt
+  FROM (SELECT strftime('%d', startTime) as valDay,
+				strftime('%m', startTime) as valMonth,
+				strftime('%Y', startTime) as valYear,
+				SUM(consumption) as amt
+				FROM rawData
+				WHERE
+				strftime('%Y', startTime)='2021'
+				AND (strftime('%H:%M:%S',startTime) >= "00:00:00" AND strftime('%H:%M:%S',endTime) <= "00:30:00"
+				OR strftime('%H:%M:%S',startTime) >= "04:30:00" AND strftime('%H:%M:%S',endTime) <="23:30:00")
+				GROUP BY valYear, valMonth, valDay) AS daily
+ WHERE structuredData.Day = daily.valDay
+ and structuredData.Month = daily.valMonth
+ and structuredData.Year = daily.valYear;
+
+
+
+ Hello,
+
+I'm pulling data from my energy provider as a rawTable and then would like to perform some calculations to place the data in an easier way to search as well as to do calculations.
+
+The data I receive from the energy supplier lands in this table:
+
+CREATE TABLE "rawData" (
+	"ID"	INTEGER NOT NULL,
+	"consumption"	REAL NOT NULL,
+	"startTime"	TEXT NOT NULL,
+	"endTime"	TEXT NOT NULL,
+	PRIMARY KEY("ID" AUTOINCREMENT)
+);
+
+I then created this table to hold the data I want per day.
+
+CREATE TABLE "structuredData" (
+	"rowID"	INTEGER NOT NULL,
+	"Year"	INTEGER NOT NULL,
+	"Month"	INTEGER NOT NULL,
+	"Day"	INTEGER NOT NULL,
+	"PeakConsumption"	REAL,
+	"OffPeakConsumptioon"	REAL,
+	PRIMARY KEY("rowID" AUTOINCREMENT)
+);
+
+To get the offpeak consumption from the rawData, I run the following query:
+
+INSERT INTO structuredData (Year, Month, Day, OffPeakConsumptioon)
+SELECT strftime('%d', startTime) as valDay,
+strftime('%m', startTime) as valMonth,
+strftime('%Y', startTime) as valYear,
+SUM(consumption) as valTotalDay
+FROM rawData
+WHERE
+strftime('%Y', startTime)>='2021'
+AND (strftime('%H:%M:%S',startTime) >= "00:30:00"
+AND strftime('%H:%M:%S',startTime) < "04:30:00")
+GROUP BY valYear, valMonth, valDay ;
+
+Then I need to essentially do the same to the Peak Consumption and came up with this query:
+
+UPDATE structuredData
+SET PeakConsumption = daily.amt
+FROM (SELECT SUM(consumption) as amt, strftime('%d', startTime) as valDay,	strftime('%m', startTime) as valMonth,	strftime('%Y', startTime) as valYear
+				FROM rawData
+				WHERE	strftime('%Y', startTime)>='2021'
+				AND (strftime('%H:%M:%S',startTime) >= "00:00:00" AND strftime('%H:%M:%S',endTime) <= "00:30:00"
+				OR strftime('%H:%M:%S',startTime) >= "04:30:00" AND strftime('%H:%M:%S',endTime) <="23:30:00")
+				GROUP BY valYear, valMonth, valDay) AS daily
+ WHERE structuredData.Day = daily.valDay
+ and structuredData.Month = daily.valMonth
+ and structuredData.Year = daily.valYear;
+
+However, this tells me there's an error.
+
+Execution finished with errors.
+Result: near "FROM": syntax error
+At line 1:
+UPDATE structuredData
+SET PeakConsumption = 1
+FROM
+
+Any ideas where I may be messing up??
