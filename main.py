@@ -6,10 +6,6 @@
 # This is a project to pull and analyse data from Octopus Energy
 
 
-
-
-
-
 from dateutil import parser
 from datetime import datetime
 import json
@@ -63,9 +59,14 @@ def create_backup(db_name):
 def create_db(db_name):
     rawData =   "CREATE TABLE \"rawData\" (\"ID\"	INTEGER NOT NULL, " \
 	            "\"consumption\"	REAL NOT NULL, " \
-	            "\"startTime\"	TEXT NOT NULL, " \
 	            "\"endTime\"	TEXT NOT NULL, " \
 	            "PRIMARY KEY(\"ID\" AUTOINCREMENT))"
+
+    buffer = "CREATE TABLE \"buffer\" (\"ID\"	INTEGER NOT NULL, " \
+             "\"consumption\"	REAL NOT NULL, " \
+             "\"startTime\"	TEXT NOT NULL, " \
+             "\"endTime\"	TEXT NOT NULL, " \
+             "PRIMARY KEY(\"ID\" AUTOINCREMENT))"
 
     sData = "CREATE TABLE \"sData\" (\"rowID\"	INTEGER NOT NULL, " \
 	        "\"Day\"	TEXT NOT NULL, " \
@@ -85,24 +86,33 @@ def create_db(db_name):
 	            "\"standingCharge\"	REAL, " \
 	            "PRIMARY KEY(\"ID\" AUTOINCREMENT))"
 
+    trigger =   "CREATE TRIGGER moveData AFTER INSERT ON buffer BEGIN " \
+	            "INSERT INTO rawData (consumption, endTime) " \
+	            "VALUES(NEW.consumption, NEW.endTime); END;"
+
     conn = sqlite3.connect(db_name)
     c = conn.cursor()
     c.execute(rawData)
     c.execute(sData)
     c.execute(tariff)
+    c.execute(buffer)
+    c.execute(trigger)
     conn.commit()
 
 
 def update_data(database, meter_point, meter_serial, api_key, start_date="2021-01-01"):
     conn = sqlite3.connect(database)
     c = conn.cursor()
-    c.execute("select Max(Day)From sData;")
+    c.execute("select Max(endTime)From rawData;")
     rows = c.fetchall()
     start = rows[0][0]
     print(start)
     connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
     while True:
-        data = {"period_from": start+"T23:30:00"}
+        if start is None:
+            data = {"period_from": "2022-01-01T00:00:00"}
+        else:
+            data = {"period_from": start}
         res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(api_key, ''))
 
         json_data = res.json()
@@ -112,7 +122,7 @@ def update_data(database, meter_point, meter_serial, api_key, start_date="2021-0
         energy_data = json_data['results']
         for item in energy_data:
             # print(item['consumption'])
-            c.execute("INSERT INTO rawData (consumption, startTime, endTime) VALUES(?,?,?);",
+            c.execute("INSERT INTO buffer (consumption, startTime, endTime) VALUES(?,?,?);",
                       (item['consumption'], item['interval_start'], item['interval_end']))
         conn.commit()
 
@@ -133,7 +143,7 @@ def update_internal_db(database):
     offpeak =   "INSERT INTO sData (Day, OffPeakConsumption) "\
 	            "SELECT date(startTime) as valDate, "\
 	            "SUM(consumption) as valTotalDay "\
-	            "FROM rawData "\
+	            "FROM buffer "\
 	            "WHERE "\
 	            "strftime('%Y', startTime)>='2021' "\
 	            "AND (strftime('%H:%M:%S',startTime) >= \"00:30:00\" "\
@@ -144,7 +154,7 @@ def update_internal_db(database):
 	        "SET PeakConsumption = daily.amt "\
 	        "FROM ( SELECT SUM(consumption) as amt, "\
 			"date(startTime) as valDate "\
-			"FROM rawData "\
+			"FROM buffer "\
 			"WHERE strftime('%Y', startTime)>='2021' "\
 			"AND (strftime('%H:%M:%S',startTime) >= \"00:00:00\" "\
 			"AND strftime('%H:%M:%S',endTime) <= \"00:30:00\" OR strftime('%H:%M:%S',startTime) >= \"04:30:00\"" \
@@ -154,15 +164,16 @@ def update_internal_db(database):
 
     total =     "UPDATE sData "\
 	            "SET TotalConsumption = daily.amt "\
-	            "FROM (  SELECT date(startTime) as valDay, "\
+	            "FROM ( SELECT date(startTime) as valDay, "\
 				"	SUM(consumption) as amt "\
-				"FROM rawData "\
+				"FROM buffer "\
 				"WHERE "\
 				"	strftime('%Y', startTime)>='2021' "\
 				"	GROUP BY valDay) AS daily "\
 	            "WHERE sData.Day = daily.valDay; "\
 
-    remove_data = "DELETE FROM rawData;"
+
+    remove_data = "DELETE FROM buffer;"
 
     conn = sqlite3.connect(database)  # 'consumption.db'
     c = conn.cursor()
@@ -184,15 +195,15 @@ def update_internal_db(database):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     # create a new DB if you need to.
-    #create_db('Data3.db')
+    # create_db('Data4.db')
 
     # pull all your data from your Octopus feed.
-    update_data(database='Data3.db', meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
+    update_data(database='Data4.db', meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
 
     # update internal data. This will move data from the raw format into a daily totalised value per day.
-    # update_internal_db('Data3.db')
+    update_internal_db('Data4.db')
 
     # create a backup of the database.
-    # create_backup('Data3.db')
+    #create_backup('Data4.db')
 
 
