@@ -1,11 +1,16 @@
-# This is a sample Python script.
+# Octopus Energy data retrieval and logging
 
-# Press ⇧F10 to execute it or replace it with your code.
-# Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+# usage octo.py
+#
+# - One method to initialise the whole thing. init database.db
+# - One method that runs daily to pull data, store and calculate. update
+# - One method to back up the database to a given location. backup location
+# -
+#
 
 # This is a project to pull and analyse data from Octopus Energy
-
-
+import sys
+import logging
 from dateutil import parser
 from datetime import datetime
 import json
@@ -50,10 +55,10 @@ def pull_data_from_octopus(database, meter_point, meter_serial, api_key):
     conn.close()
     # end function.
 
-def create_backup(db_name):
+def create_backup(db_name, location='./backups/'):
     date_now = datetime.now()
     current_time = date_now.strftime("%d-%m-%Y_%H_%M_%S")
-    backup_file = './backups/Backup_' + current_time + '.db'
+    backup_file = location + 'backup'+ current_time + '.db'
     shutil.copyfile(db_name, backup_file)
 
 def create_db(db_name):
@@ -110,7 +115,7 @@ def update_data(database, meter_point, meter_serial, api_key, start_date="2021-0
     connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
     while True:
         if start is None:
-            data = {"period_from": "2022-01-01T00:00:00"}
+            data = {"period_from": "2021-01-01T00:00:00"}
         else:
             data = {"period_from": start}
         res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(api_key, ''))
@@ -190,20 +195,71 @@ def update_internal_db(database):
     conn.commit()
     pass
 
+def usage():
+    print('Octopus Energy script')
+    print('usage: octo.py <option> <argument>')
+    print('    option:')
+    print('        init database.db - initialise database with the name database.db')
+    print('        update database.db - update energy data into database.db')
+    print('        backup database.db location - create a copy of the DB and store it in the specified location')
+    print('')
+    print('Your connection details and energy meter data must be stored in a file named meter_data.py')
+    exit()  # end the program here.
 
 
-# Press the green button in the gutter to run the script.
+# Main function
 if __name__ == '__main__':
+
+# setup logging.
+    now = datetime.now()
+    run_time_stamp = now.strftime('%Y-%m-%d_%H_%M')
+    logging.basicConfig(filename=run_time_stamp+'.log', level=logging.DEBUG)
+
+# parse arguments
+    args = len(sys.argv)
+# if not enough arguments, show how this is used.
+    if args == 1:
+        logging.error('not enough arguments')
+        usage()
+# if init, but not enough arguments passed, show how this is used.
+    if sys.argv[1] == 'init' and args == 3:
+        create_db(sys.argv[2])
+        logging.info('system initialised')
+
+    else:
+        logging.error('not enough arguments')
+        usage()
+# if update but not enough arguments passed, show how this is used.
+    if sys.argv[1] == 'update' and args == 3:
+        update_data(database=sys.argv[2], meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
+        update_internal_db(sys.argv[2])
+        logging.info('system updated')
+    else:
+        usage()
+        logging.error('not enough arguments')
+# if backup but not enough arguments passed, show how this is used.
+    if sys.argv[1] == 'backup' and args >= 3:
+        if args == 3:
+            create_backup(sys.argv[2])
+        else:
+            create_backup(sys.argv[2], location = sys.argv[3])
+        logging.info('system backed up')
+    else:
+        usage()
+        logging.error('not enough arguments')
+
+
+
     # create a new DB if you need to.
-    # create_db('Data4.db')
+    # create_db('Data5.db')
 
     # pull all your data from your Octopus feed.
-    update_data(database='Data4.db', meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
+    # update_data(database='Data5.db', meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
 
     # update internal data. This will move data from the raw format into a daily totalised value per day.
-    update_internal_db('Data4.db')
+    # update_internal_db('Data5.db')
 
     # create a backup of the database.
-    #create_backup('Data4.db')
+    #create_backup('Data4.db', )
 
 
