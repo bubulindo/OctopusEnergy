@@ -6,11 +6,8 @@
 # This is a project to pull and analyse data from Octopus Energy
 
 
-# Your API key is: sk_live_WCpBZyy7RieVyGdrZsquE7fj
-API_Key = "sk_live_WCpBZyy7RieVyGdrZsquE7fj"
-Account_Number = "A-9ABA5D61"
-meterPoint = "1023478317662"
-meterSerial = "17P2027411"
+
+
 
 
 from dateutil import parser
@@ -20,7 +17,10 @@ import requests
 import sqlite3
 from requests.auth import HTTPBasicAuth
 import shutil
-
+from meter_data import _API_key as API_key
+from meter_data import _Account_Number as Account_Number
+from meter_data import _meterPoint as meterPoint
+from meter_data import _meterSerial as meterSerial
 
 # This needs can be tweaked to increase the period from and to.
 # This could be tweaked to have the user name the table to hold the data.
