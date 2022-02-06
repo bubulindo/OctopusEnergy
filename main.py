@@ -17,10 +17,13 @@ import requests
 import sqlite3
 from requests.auth import HTTPBasicAuth
 import shutil
-from meter_data import _API_key as API_key
-from meter_data import _Account_Number as Account_Number
-from meter_data import _meterPoint as meterPoint
-from meter_data import _meterSerial as meterSerial
+
+# retrieve the API key and meter details.
+
+from meter_data import Account_Number
+from meter_data import API_Key
+from meter_data import meterPoint
+from meter_data import meterSerial
 
 # This needs can be tweaked to increase the period from and to.
 # This could be tweaked to have the user name the table to hold the data.
@@ -99,10 +102,11 @@ def update_data(database, meter_point, meter_serial, api_key, start_date="2021-0
     print(start)
     connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
     while True:
-        data = {"period_from": start}
+        data = {"period_from": start+"T23:30:00"}
         res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(api_key, ''))
 
         json_data = res.json()
+        print(json_data)
         number_points = json_data['count']
         next_page = json_data['next']
         energy_data = json_data['results']
@@ -186,9 +190,9 @@ if __name__ == '__main__':
     update_data(database='Data3.db', meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
 
     # update internal data. This will move data from the raw format into a daily totalised value per day.
-    update_internal_db('Data3.db')
+    # update_internal_db('Data3.db')
 
     # create a backup of the database.
-    create_backup('Data3.db')
+    # create_backup('Data3.db')
 
 
