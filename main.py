@@ -111,7 +111,7 @@ def update_data(database, meter_point, meter_serial, api_key, start_date="2021-0
     c.execute("select Max(endTime)From rawData;")
     rows = c.fetchall()
     start = rows[0][0]
-    print(start)
+    # print(start)
     connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
     if start is None:
         data = {"period_from": "2021-01-01T00:00:00"}
@@ -133,7 +133,7 @@ def update_data(database, meter_point, meter_serial, api_key, start_date="2021-0
                       (item['consumption'], item['interval_start'], item['interval_end']))
         conn.commit()
 
-        print(next_page)
+        # print(next_page)
 
         if next_page is None:
             break
@@ -219,8 +219,8 @@ if __name__ == '__main__':
 
 # parse arguments
     args = len(sys.argv)
-    print(args)
-    print(sys.argv)
+    # print(args)
+    # print(sys.argv)
 # if not enough arguments, show how this is used.
     if args == 1:
         logging.error('not enough arguments')
