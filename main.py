@@ -113,15 +113,17 @@ def update_data(database, meter_point, meter_serial, api_key, start_date="2021-0
     start = rows[0][0]
     print(start)
     connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
-    while True:
-        if start is None:
-            data = {"period_from": "2021-01-01T00:00:00"}
-        else:
-            data = {"period_from": start}
-        res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(api_key, ''))
+    if start is None:
+        data = {"period_from": "2021-01-01T00:00:00"}
+    else:
+        data = {"period_from": start}
 
+    while True:
+
+        res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(api_key, ''))
+        data = None
         json_data = res.json()
-        print(json_data)
+        # print(json_data)
         number_points = json_data['count']
         next_page = json_data['next']
         energy_data = json_data['results']
@@ -204,7 +206,7 @@ def usage():
     print('        backup database.db location - create a copy of the DB and store it in the specified location')
     print('')
     print('Your connection details and energy meter data must be stored in a file named meter_data.py')
-    exit()  # end the program here.
+    # exit()  # end the program here.
 
 
 # Main function
@@ -217,6 +219,8 @@ if __name__ == '__main__':
 
 # parse arguments
     args = len(sys.argv)
+    print(args)
+    print(sys.argv)
 # if not enough arguments, show how this is used.
     if args == 1:
         logging.error('not enough arguments')
@@ -225,28 +229,32 @@ if __name__ == '__main__':
     if sys.argv[1] == 'init' and args == 3:
         create_db(sys.argv[2])
         logging.info('system initialised')
-
+        exit()
     else:
-        logging.error('not enough arguments')
+        logging.error('init: not enough arguments')
         usage()
 # if update but not enough arguments passed, show how this is used.
     if sys.argv[1] == 'update' and args == 3:
         update_data(database=sys.argv[2], meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
         update_internal_db(sys.argv[2])
         logging.info('system updated')
+        exit()
     else:
+        logging.error('update: not enough arguments')
         usage()
-        logging.error('not enough arguments')
+
 # if backup but not enough arguments passed, show how this is used.
     if sys.argv[1] == 'backup' and args >= 3:
         if args == 3:
             create_backup(sys.argv[2])
         else:
             create_backup(sys.argv[2], location = sys.argv[3])
-        logging.info('system backed up')
+            logging.info('system backed up')
+        exit()
     else:
+        logging.error('backup: not enough arguments')
         usage()
-        logging.error('not enough arguments')
+
 
 
 
