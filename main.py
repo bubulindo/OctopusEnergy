@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # Octopus Energy data retrieval and logging
 
 # usage octo.py
@@ -213,9 +215,9 @@ def usage():
 if __name__ == '__main__':
 
 # setup logging.
-    now = datetime.now()
-    run_time_stamp = now.strftime('%Y-%m-%d_%H_%M')
-    logging.basicConfig(filename=run_time_stamp+'.log', level=logging.DEBUG)
+    #now = datetime.now()
+    #run_time_stamp = now.strftime('%Y-%m-%d_%H_%M')
+    logging.basicConfig(filename='octopusEnergy.log', level=logging.DEBUG)
 
 # parse arguments
     args = len(sys.argv)
@@ -269,5 +271,7 @@ if __name__ == '__main__':
 
     # create a backup of the database.
     #create_backup('Data4.db', )
+
+
 
 
