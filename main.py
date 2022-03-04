@@ -221,8 +221,8 @@ if __name__ == '__main__':
 
 # parse arguments
     args = len(sys.argv)
-    # print(args)
-    # print(sys.argv)
+    print(args)
+    print(sys.argv)
 # if not enough arguments, show how this is used.
     if args == 1:
         logging.error('not enough arguments')
