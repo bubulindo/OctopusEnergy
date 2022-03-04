@@ -229,22 +229,18 @@ if __name__ == '__main__':
         usage()
         exit()
 # if init, but not enough arguments passed, show how this is used.
-    if sys.argv[1] == 'init' and args == 3:
-        create_db(sys.argv[2])
-        logging.info('system initialised')
-        exit()
+    if args == 3:
+        if sys.argv[1] == 'init':
+            create_db(sys.argv[2])
+            logging.info('system initialised')
+            exit()
+        if sys.argv[1] == 'update':
+            update_data(database=sys.argv[2], meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
+            update_internal_db(sys.argv[2])
+            logging.info('system updated')
+            exit()
     else:
         logging.error('init: not enough arguments')
-        usage()
-        exit()
-# if update but not enough arguments passed, show how this is used.
-    if sys.argv[1] == 'update' and args == 3:
-        update_data(database=sys.argv[2], meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
-        update_internal_db(sys.argv[2])
-        logging.info('system updated')
-        exit()
-    else:
-        logging.error('update: not enough arguments')
         usage()
         exit()
 
