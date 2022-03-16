@@ -8,11 +8,7 @@
 # - One method that runs daily to pull data, store and calculate. update
 # - One method to back up the database to a given location. backup location
 # -
-# - V1 development
-# - V2 sqlite working ok for this.
-# - V3 changed to MySQL
-
-
+#
 
 # This is a project to pull and analyse data from Octopus Energy
 import sys
@@ -21,42 +17,26 @@ from dateutil import parser
 from datetime import datetime
 import json
 import requests
-import mariadb
+import sqlite3
 from requests.auth import HTTPBasicAuth
 import shutil
 
-# retrieve the API key and meter details and user details to login to database.
+# retrieve the API key and meter details.
 
 from meter_data import Account_Number
 from meter_data import API_Key
 from meter_data import meterPoint
 from meter_data import meterSerial
-from meter_data import dbHost
-from meter_data import dbPort
-from meter_data import dbName
-from meter_data import dbUser
-from meter_data import dbPass
 
 # This needs can be tweaked to increase the period from and to.
 # This could be tweaked to have the user name the table to hold the data.
 def pull_data_from_octopus(database, meter_point, meter_serial, api_key):
-    # connect to database
-    try:
-        conn = mariadb.connect(
-            user= dbUser,
-            password=dbPass,
-            host=dbHost,
-            port=dbPort,
-            database=dbName
-        )
-    except mariadb.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
-
+    # add sanitation for file name
+    conn = sqlite3.connect(database)
     c = conn.cursor()
-    connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meterPoint + "/meters/" + meterSerial + "/consumption/"
+    connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
     while True:
-        res = requests.get(connection_string, verify=True, auth=HTTPBasicAuth(API_Key, ''))
+        res = requests.get(connection_string, verify=True, auth=HTTPBasicAuth(api_key, ''))
 
         json_data = res.json()
         number_points = json_data['count']
@@ -127,24 +107,14 @@ def create_db(db_name):
     conn.commit()
 
 
-def update_data( start_date="2021-01-01"):
-    try:
-        conn = mariadb.connect(
-            user=dbUser,
-            password=dbPass,
-            host=dbHost,
-            port=dbPort,
-            database=dbName
-        )
-    except mariadb.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+def update_data(database, meter_point, meter_serial, api_key, start_date="2021-01-01"):
+    conn = sqlite3.connect(database)
     c = conn.cursor()
     c.execute("select Max(endTime)From rawData;")
     rows = c.fetchall()
     start = rows[0][0]
     print(start)
-    connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meterPoint + "/meters/" + meterSerial + "/consumption/"
+    connection_string = "https://api.octopus.energy/v1/electricity-meter-points/" + meter_point + "/meters/" + meter_serial + "/consumption/"
     if start is None:
         data = {"period_from": "2021-01-01T00:00:00"}
     else:
@@ -152,24 +122,20 @@ def update_data( start_date="2021-01-01"):
 
     while True:
 
-        res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(API_Key, ''))
+        res = requests.get(connection_string, verify=True, params=data, auth=HTTPBasicAuth(api_key, ''))
         data = None
         json_data = res.json()
-        # print(json_data)
+        print(json_data)
         number_points = json_data['count']
         next_page = json_data['next']
         energy_data = json_data['results']
         for item in energy_data:
             # print(item['consumption'])
-            start = datetime.strptime(item['interval_start'], "%Y-%m-%dT%H:%M:%S%z")
-            start = start.strftime("%Y-%m-%d %H:%M:%S")
-            end = datetime.strptime(item['interval_end'], "%Y-%m-%dT%H:%M:%S%z")
-            end = end.strftime("%Y-%m-%d %H:%M:%S")
-            c.execute("INSERT INTO buffer (consumption, startTime, endTime) VALUES(?, ?, ?);",
-                      (item['consumption'], start, end))
+            c.execute("INSERT INTO buffer (consumption, startTime, endTime) VALUES(?,?,?);",
+                      (item['consumption'], item['interval_start'], item['interval_end']))
         conn.commit()
 
-        print(next_page)
+        # print(next_page)
 
         if next_page is None:
             break
@@ -188,44 +154,37 @@ def update_internal_db(database):
 	            "SUM(consumption) as valTotalDay "\
 	            "FROM buffer "\
 	            "WHERE "\
-	            "year(startTime)>='2021' "\
-	            "AND (time(startTime) >= \"00:30:00\" "\
-	            "AND time(startTime) < \"04:30:00\") "\
+	            "strftime('%Y', startTime)>='2021' "\
+	            "AND (strftime('%H:%M:%S',startTime) >= \"00:30:00\" "\
+	            "AND strftime('%H:%M:%S',startTime) < \"04:30:00\") "\
 	            "GROUP BY valDate ; "\
 
-    peak =  "UPDATE sData c INNER JOIN ("\
-            "SELECT date(startTime) as daily, SUM(consumption) as peak "\
-            "FROM buffer "\
-            "WHERE year(startTime)>='2021' AND (time(startTime) >= \"00:00:00\" AND time(endTime) <= \"00:30:00\" "\
-            "OR time(startTime) >= \"04:30:00\" AND time(endTime) <=\"23:30:00\") "\
-            "GROUP BY date(startTime) "\
-            ") x ON c.Day = x.daily "\
-            "SET c.PeakConsumption = x.peak;"
+    peak =  "UPDATE sData "\
+	        "SET PeakConsumption = daily.amt "\
+	        "FROM ( SELECT SUM(consumption) as amt, "\
+			"date(startTime) as valDate "\
+			"FROM buffer "\
+			"WHERE strftime('%Y', startTime)>='2021' "\
+			"AND (strftime('%H:%M:%S',startTime) >= \"00:00:00\" "\
+			"AND strftime('%H:%M:%S',endTime) <= \"00:30:00\" OR strftime('%H:%M:%S',startTime) >= \"04:30:00\"" \
+            " AND strftime('%H:%M:%S',endTime) <=\"23:30:00\") "\
+			"GROUP BY valDate) AS daily "\
+	        "WHERE sData.Day = daily.valDate; "\
 
-
-    total =     "UPDATE sData c "\
-                "INNER JOIN ( "\
-                "SELECT date(startTime) as daily, SUM(consumption) as total "\
-                "FROM buffer "\
-                "WHERE date(startTime)>=\"2021-01-01\" "\
-                "GROUP BY date(startTime) "\
-                ") x ON c.Day = x.daily "\
-                "SET c.TotalConsumption = x.total;"
+    total =     "UPDATE sData "\
+	            "SET TotalConsumption = daily.amt "\
+	            "FROM ( SELECT date(startTime) as valDay, "\
+				"	SUM(consumption) as amt "\
+				"FROM buffer "\
+				"WHERE "\
+				"	strftime('%Y', startTime)>='2021' "\
+				"	GROUP BY valDay) AS daily "\
+	            "WHERE sData.Day = daily.valDay; "\
 
 
     remove_data = "DELETE FROM buffer;"
 
-    try:
-        conn = mariadb.connect(
-            user=dbUser,
-            password=dbPass,
-            host=dbHost,
-            port=dbPort,
-            database=dbName
-        )
-    except mariadb.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        sys.exit(1)
+    conn = sqlite3.connect(database)  # 'consumption.db'
     c = conn.cursor()
     # print("updating offpeak")
     c.execute(offpeak);
@@ -260,8 +219,45 @@ if __name__ == '__main__':
     #run_time_stamp = now.strftime('%Y-%m-%d_%H_%M')
     logging.basicConfig(filename='octopusEnergy.log', level=logging.DEBUG)
 
-    update_data()
-    update_internal_db('Data5.db')
+# parse arguments
+    args = len(sys.argv)
+    print(args)
+    print(sys.argv)
+# if not enough arguments, show how this is used.
+    if args == 1:
+        logging.error('not enough arguments')
+        usage()
+        exit()
+# if init, but not enough arguments passed, show how this is used.
+    if args == 3:
+        if sys.argv[1] == 'init':
+            create_db(sys.argv[2])
+            logging.info('system initialised')
+            exit()
+        if sys.argv[1] == 'update':
+            update_data(database=sys.argv[2], meter_point=meterPoint, meter_serial=meterSerial, api_key=API_Key)
+            update_internal_db(sys.argv[2])
+            logging.info('system updated')
+            exit()
+    else:
+        logging.error('init: not enough arguments')
+        usage()
+        exit()
+
+# if backup but not enough arguments passed, show how this is used.
+    if sys.argv[1] == 'backup' and args >= 3:
+        if args == 3:
+            create_backup(sys.argv[2])
+        else:
+            create_backup(sys.argv[2], location = sys.argv[3])
+            logging.info('system backed up')
+        exit()
+    else:
+        logging.error('backup: not enough arguments')
+        usage()
+
+
+
 
     # create a new DB if you need to.
     # create_db('Data5.db')
