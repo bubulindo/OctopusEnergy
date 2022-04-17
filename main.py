@@ -127,7 +127,7 @@ def create_db(db_name):
     conn.commit()
 
 
-def update_data( start_date="2021-01-01"):
+def update_data( start_date="2022-01-01"):
     try:
         conn = mariadb.connect(
             user=dbUser,
@@ -183,7 +183,8 @@ def update_data( start_date="2021-01-01"):
 
 def update_internal_db(database):
     # update and data transfer move queries.
-    offpeak =   "INSERT INTO sData (Day, OffPeakConsumption) "\
+    # was INSERT
+    offpeak =   "REPLACE INTO sData (Day, OffPeakConsumption) "\
 	            "SELECT date(startTime) as valDate, "\
 	            "SUM(consumption) as valTotalDay "\
 	            "FROM buffer "\
@@ -192,6 +193,8 @@ def update_internal_db(database):
 	            "AND (time(startTime) >= \"00:30:00\" "\
 	            "AND time(startTime) < \"04:30:00\") "\
 	            "GROUP BY valDate ; "\
+
+# solution is a merge instruction.
 
     peak =  "UPDATE sData c INNER JOIN ("\
             "SELECT date(startTime) as daily, SUM(consumption) as peak "\

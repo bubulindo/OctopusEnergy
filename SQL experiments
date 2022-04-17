@@ -1,3 +1,38 @@
+this is the merge statement
+
+MERGE sData as Target
+USING buffer as Source
+ON Target.Day = DATE(Source.endTime)
+
+WHEN NOT MATCHED by Target THEN
+
+"INSERT INTO sData (Day, OffPeakConsumption) "\
+	            "SELECT date(startTime) as valDate, "\
+	            "SUM(consumption) as valTotalDay "\
+	            "FROM buffer "\
+	            "WHERE "\
+	            "year(startTime)>='2021' "\
+	            "AND (time(startTime) >= \"00:30:00\" "\
+	            "AND time(startTime) < \"04:30:00\") "\
+	            "GROUP BY valDate ;
+
+WHEN MATCHED THEN
+
+date(startTime) as valDate, "\
+
+    Target.Day = date(Source.endTime)
+    Target.offpeak = "SELECT "SUM(consumption) as valTotalDay "\
+	            "FROM buffer "\
+	            "WHERE "\
+	            "year(startTime)>='2021' "\
+	            "AND (time(startTime) >= \"00:30:00\" "\
+	            "AND time(startTime) < \"04:30:00\") "\
+	            "GROUP BY date(startTime);
+
+
+
+
+
 CREATE TABLE `sData` (
   `rowID` int(11) NOT NULL AUTO_INCREMENT,
   `Day` date DEFAULT NULL,
