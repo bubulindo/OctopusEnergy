@@ -127,7 +127,7 @@ def create_db(db_name):
     conn.commit()
 
 
-def update_data( start_date="2022-01-01"):
+def update_data( start_date="2021-01-01"):
     try:
         conn = mariadb.connect(
             user=dbUser,
